@@ -53,6 +53,10 @@ describe('processMessage', () => {
       version: event.version,
       updated_at: event.occurred_at,
     });
+    // Persist before caching so a Mongo outage never advances the cache.
+    expect(d.collection.insertOne.mock.invocationCallOrder[0]).toBeLessThan(
+      d.redis.eval.mock.invocationCallOrder[0],
+    );
     expect(d.channel.ack).toHaveBeenCalledWith(msg());
     expect(d.channel.nack).not.toHaveBeenCalled();
   });
@@ -110,6 +114,7 @@ describe('processMessage', () => {
 
     expect(d.channel.nack).toHaveBeenCalledWith(msg(), false, true);
     expect(d.channel.ack).not.toHaveBeenCalled();
+    if (source === 'Mongo') expect(d.redis.eval).not.toHaveBeenCalled();
   });
 
   it.each([
