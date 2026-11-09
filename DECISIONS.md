@@ -68,3 +68,7 @@
 - NestJS na API e no worker (standalone, sem HTTP). TypeORM com migrations rodando no start (`synchronize` desligado).
 - UI com Vite, React, Tailwind e componentes no estilo shadcn/ui.
 - `lint` de cada pacote é `tsc --noEmit` (sem ESLint): pega erro de tipo, que é o que mais importa aqui, sem configurar mais uma ferramenta.
+
+## 9. Login local apenas para teste
+
+A API agora assina JWTs RS256 de 8h para permitir login com email e senha nos três usuários de teste, mantendo os mesmos `sub` e `role` do guard. A chave privada é montada somente neste ambiente de teste; senhas usam scrypt com salt aleatório e falhas devolvem a mesma mensagem. Em produção, a emissão pertenceria a um provedor de identidade, sem distribuir esta chave privada de teste.

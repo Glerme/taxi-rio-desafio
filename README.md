@@ -41,10 +41,10 @@ O script testa, contra os serviços reais: 401 sem token e com token inválido, 
 
 ### Fluxo pela UI
 
-1. Abra http://localhost:8080 e entre com o token de teste **passageiro-1**.
+1. Abra http://localhost:8080 e entre com **passageiro1@taxi.rio** e senha **taxi123**.
 2. Crie uma corrida (origem e destino).
-3. Saia e entre como **motorista-1**: aceite, inicie e finalize.
-4. Volte como passageiro-1: o status acompanha (polling de 2s).
+3. Saia e entre como **motorista1@taxi.rio** (mesma senha): aceite, inicie e finalize.
+4. Volte como passageiro1@taxi.rio: o status acompanha (polling de 2s).
 
 ### Na mão, com curl
 
@@ -67,10 +67,11 @@ curl -s localhost:3000/corridas/<id> -H "Authorization: Bearer $P1"
 
 ## API
 
-Todas as rotas (menos `/health`) exigem `Authorization: Bearer <jwt>`.
+As rotas de corridas exigem `Authorization: Bearer <jwt>`.
 
 | Método e rota | Quem | Respostas |
 |---|---|---|
+| `POST /auth/login` | público | 200 `{token}` · 401 `{message: "Credenciais inválidas"}` |
 | `POST /corridas` | passageiro | 201 · 201 + `Idempotent-Replayed: true` · 400 (sem `Idempotency-Key` ou corpo inválido) · 401 · 403 · 422 (mesma chave, outro corpo) |
 | `PATCH /corridas/:id/status` | motorista | 200 · 401 · 403 (role, ou outro motorista) · 404 · 409 (transição inválida ou conflito de versão) |
 | `GET /corridas/:id` | ambos | 200 snapshot `{id, passageiro_id, motorista_id, status, version, updated_at}` · 403 (corrida de outro passageiro) · 404 |
@@ -80,7 +81,25 @@ Status: `solicitada → aceita → em_andamento → finalizada`.
 
 ## Chaves e tokens de teste
 
-`keys/` tem um par RSA e três JWTs RS256 (`passageiro-1`, `passageiro-2`, `motorista-1`, válidos por 10 anos) em `keys/tokens.json`. **São só de teste**, gerados por `node scripts/gen-keys-tokens.mjs` (regerar invalida os tokens anteriores). A API recebe só a chave pública.
+`keys/` tem um par RSA e três JWTs RS256 (`passageiro-1`, `passageiro-2`, `motorista-1`, válidos por 10 anos) em `keys/tokens.json`. **São só de teste**, gerados por `node scripts/gen-keys-tokens.mjs` (regerar invalida os tokens anteriores). A API recebe a chave pública para validar tokens e a privada para emitir tokens de login, somente neste ambiente de teste.
+
+## Usuários de teste e login
+
+A migration cria estes usuários; a senha de todos é `taxi123` (armazenada com scrypt e salt aleatório).
+
+| Email | sub | role |
+|---|---|---|
+| passageiro1@taxi.rio | passageiro-1 | passageiro |
+| passageiro2@taxi.rio | passageiro-2 | passageiro |
+| motorista1@taxi.rio | motorista-1 | motorista |
+
+```bash
+curl -s localhost:3000/auth/login -H 'Content-Type: application/json' -d '{"email":"passageiro1@taxi.rio","password":"taxi123"}'
+```
+
+Use o campo `token` retornado como `Authorization: Bearer <token>`. O JWT RS256 expira em 8h; os tokens estáticos continuam válidos. Email ou senha inválidos, usuário inexistente e campos inválidos recebem o mesmo 401. O login aceita email e senha como strings não vazias, com limites de 255 e 128 caracteres.
+
+A migration é aditiva e preserva usuários existentes em uma repetição após falha parcial; seu rollback remove a tabela `users` e suas credenciais, sem alterar corridas.
 
 ## Estrutura
 
