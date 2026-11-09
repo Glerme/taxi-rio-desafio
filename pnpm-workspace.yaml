@@ -3,3 +3,8 @@ packages:
   - worker
   - ui
   - packages/*
+
+# protobufjs (via OpenTelemetry) tem um postinstall que só confere versão; o exporter
+# OTLP usa HTTP/JSON. Sem isso o pnpm 12 falha o install --frozen-lockfile (Docker e CI).
+allowBuilds:
+  protobufjs: false
