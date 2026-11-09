@@ -30,7 +30,7 @@ export default function App() {
     <div className="min-h-screen">
       <header className="bg-asphalt text-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-          <h1 className="flex items-center gap-2 font-display text-3xl font-extrabold tracking-tight">
+          <h1 className="flex shrink-0 items-center gap-2 font-display text-3xl font-extrabold tracking-tight">
             <span className="flex size-10 items-center justify-center rounded-lg bg-taxi text-asphalt">
               <CarTaxiFront aria-hidden size={26} />
             </span>
@@ -39,7 +39,10 @@ export default function App() {
           {session && (
             <div className="flex min-w-0 items-center gap-1 text-sm">
               <UserRound aria-hidden size={18} className="shrink-0 text-taxi" />
-              <span className="truncate">{session.sub}</span>
+              <span className="min-w-12 truncate" title={session.sub}>
+                <span className="sm:hidden">{session.sub.split('@')[0]}</span>
+                <span className="hidden sm:inline">{session.sub}</span>
+              </span>
               <span className="shrink-0">({session.role})</span>
               <Button variant="ghost" onClick={logout} aria-label="Sair" className="text-white focus-visible:outline-taxi">
                 <LogOut aria-hidden size={20} />

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Eye, EyeOff, Loader2, LogIn, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +10,8 @@ export function Login({ onLogin }: { onLogin: (token: string) => boolean }) {
   const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -26,9 +28,10 @@ export function Login({ onLogin }: { onLogin: (token: string) => boolean }) {
       setError(res.status === 401 ? (body?.message ?? 'Credenciais inválidas') : 'Não foi possível entrar. Tente de novo.')
     } catch {
       setError('Falha de rede. Verifique a conexão e tente de novo.')
-    } finally {
-      setLoading(false)
     }
+    // o botão ficou disabled e o foco caiu no body: devolve ao campo
+    setLoading(false)
+    ;(password ? passwordRef : emailRef).current?.focus()
   }
 
   return (
@@ -43,6 +46,7 @@ export function Login({ onLogin }: { onLogin: (token: string) => boolean }) {
             <label htmlFor="email" className="font-semibold">E-mail</label>
             <Input
               id="email"
+              ref={emailRef}
               type="email"
               autoComplete="email"
               value={email}
@@ -56,6 +60,7 @@ export function Login({ onLogin }: { onLogin: (token: string) => boolean }) {
             <div className="relative">
               <Input
                 id="password"
+                ref={passwordRef}
                 type={show ? 'text' : 'password'}
                 autoComplete="current-password"
                 value={password}
