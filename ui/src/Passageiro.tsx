@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { MapPin, RotateCw, Route, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,15 +52,18 @@ export function Passageiro({ token }: { token: string }) {
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 space-y-1">
-              <label htmlFor="origem" className="text-sm">Origem</label>
+            <div className="min-w-48 flex-1 space-y-1">
+              <label htmlFor="origem" className="flex items-center gap-1.5 font-semibold"><MapPin aria-hidden size={16} />Origem</label>
               <Input id="origem" value={origem} onChange={edit(setOrigem)} required />
             </div>
-            <div className="flex-1 space-y-1">
-              <label htmlFor="destino" className="text-sm">Destino</label>
+            <div className="min-w-48 flex-1 space-y-1">
+              <label htmlFor="destino" className="flex items-center gap-1.5 font-semibold"><Route aria-hidden size={16} />Destino</label>
               <Input id="destino" value={destino} onChange={edit(setDestino)} required />
             </div>
-            <Button type="submit">{retry ? 'Tentar de novo' : 'Solicitar'}</Button>
+            <Button type="submit" className="w-full sm:w-auto">
+              {retry ? <RotateCw aria-hidden size={18} /> : <Send aria-hidden size={18} />}
+              {retry ? 'Tentar de novo' : 'Solicitar'}
+            </Button>
           </form>
         </CardContent>
       </Card>

@@ -1,1 +1,32 @@
 @import "tailwindcss";
+
+/* Táxi Rio: amarelo-táxi sobre asfalto. Contrastes: asphalt/taxi 12:1, ink/paper 15:1, muted/paper 6:1 */
+@theme {
+  --color-taxi: #ffc72c;
+  --color-taxi-hover: #f2b400;
+  --color-taxi-soft: #fff3c4;
+  --color-asphalt: #17140f;
+  --color-paper: #faf7ee;
+  --color-ink: #1d1a14;
+  --color-muted: #5c5648;
+  --color-line: #ddd6c2;
+  --color-danger: #a4161a;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Barlow", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-asphalt);
+    outline-offset: 2px;
+  }
+}
+
+/* faixa quadriculada de táxi sob o header */
+.checker {
+  background: repeating-conic-gradient(var(--color-asphalt) 0 25%, var(--color-taxi) 0 50%) 0 0 / 16px 16px;
+  height: 8px;
+}
