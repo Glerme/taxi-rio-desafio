@@ -1,4 +1,7 @@
-import { Logger } from '@nestjs/common';
+import { SpanStatusCode } from '@opentelemetry/api';
+import { logger } from './logger';
+import { eventLag, messagesTotal, processingDuration } from './metrics';
+import { withMessageSpan } from './message-tracing';
 import type { Channel, ConsumeMessage } from 'amqplib';
 import { CorridaEvent, ROUTING_KEYS, setCorridaIfNewer } from 'contracts';
 import type Redis from 'ioredis';
@@ -10,8 +13,6 @@ export interface MessageDependencies {
   collection: Pick<Collection<StoredEvent>, 'insertOne'>;
   redis: Redis;
 }
-
-const logger = new Logger('MessageProcessor');
 
 export function parseEvent(content: Buffer): CorridaEvent {
   const value: unknown = JSON.parse(content.toString('utf8'));
@@ -44,33 +45,56 @@ export function parseEvent(content: Buffer): CorridaEvent {
 }
 
 export async function processMessage(msg: ConsumeMessage, deps: MessageDependencies): Promise<void> {
-  let event: CorridaEvent;
-  try {
-    event = parseEvent(msg.content);
-  } catch (error) {
-    logger.warn(`Malformed event: ${String(error)}`);
-    deps.channel.nack(msg, false, false);
-    return;
-  }
-
-  try {
+  const stopTimer = processingDuration.startTimer();
+  return withMessageSpan(msg, async (span) => {
+    let outcome: 'processed' | 'duplicate' | 'malformed' | 'failed' = 'failed';
+    let event: CorridaEvent | undefined;
     try {
-      await deps.collection.insertOne({ ...event, received_at: new Date() });
-    } catch (error) {
-      // event_id is the only caller-supplied unique key; duplicates still repair the cache.
-      if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 11000) throw error;
+      try {
+        event = parseEvent(msg.content);
+        span.setAttributes({ event_id: event.event_id, corrida_id: event.corrida_id, type: event.type });
+      } catch (error) {
+        outcome = 'malformed';
+        span.recordException(error instanceof Error ? error : String(error));
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        logger.warn({ err: error, event_id: null, corrida_id: null, type: null, outcome }, 'Malformed event');
+        deps.channel.nack(msg, false, false);
+        return;
+      }
+
+      try {
+        outcome = 'processed';
+        try {
+          await deps.collection.insertOne({ ...event, received_at: new Date() });
+        } catch (error) {
+          // event_id is the only caller-supplied unique key; duplicates still repair the cache.
+          if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 11000) throw error;
+          outcome = 'duplicate';
+        }
+        await setCorridaIfNewer(deps.redis, {
+          id: event.corrida_id,
+          passageiro_id: event.passageiro_id,
+          motorista_id: event.motorista_id,
+          status: event.status,
+          version: event.version,
+          updated_at: event.occurred_at,
+        });
+        deps.channel.ack(msg);
+        eventLag.observe(Math.max(0, (Date.now() - Date.parse(event.occurred_at)) / 1000));
+      } catch (error) {
+        outcome = 'failed';
+        span.recordException(error instanceof Error ? error : String(error));
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        logger.error({ err: error, event_id: event.event_id, corrida_id: event.corrida_id, type: event.type, outcome }, 'Event processing failed');
+        deps.channel.nack(msg, false, true);
+      }
+    } finally {
+      span.setAttribute('outcome', outcome);
+      messagesTotal.inc({ outcome });
+      stopTimer();
+      if (event && (outcome === 'processed' || outcome === 'duplicate')) {
+        logger.info({ event_id: event.event_id, corrida_id: event.corrida_id, type: event.type, outcome }, 'Event processed');
+      }
     }
-    await setCorridaIfNewer(deps.redis, {
-      id: event.corrida_id,
-      passageiro_id: event.passageiro_id,
-      motorista_id: event.motorista_id,
-      status: event.status,
-      version: event.version,
-      updated_at: event.occurred_at,
-    });
-    deps.channel.ack(msg);
-  } catch (error) {
-    logger.error(`Event processing failed: ${String(error)}`);
-    deps.channel.nack(msg, false, true);
-  }
+  });
 }
