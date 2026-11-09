@@ -9,6 +9,8 @@ import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
 const sdk = new NodeSDK({
   serviceName: process.env.OTEL_SERVICE_NAME ?? 'api',
   traceExporter: new OTLPTraceExporter(),
+  logRecordProcessors: [],
+  metricReaders: [],
   // AMQP is deliberately manual: the outbox persists the request context.
   instrumentations: [new HttpInstrumentation(), new ExpressInstrumentation(), new MySQL2Instrumentation(), new IORedisInstrumentation(), new PinoInstrumentation({ disableLogSending: true })],
 });
