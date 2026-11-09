@@ -15,6 +15,8 @@ services:
       MYSQL_DATABASE: taxi
       JWT_PUBLIC_KEY_PATH: /keys/public.pem
       PORT: "3000"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: api
     volumes:
       - ./keys/public.pem:/keys/public.pem:ro
     depends_on:
@@ -39,6 +41,8 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       MONGO_URL: mongodb://mongo:27017/taxi
       METRICS_PORT: "3001"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: worker
     depends_on:
       mongo:
         condition: service_healthy
@@ -98,12 +102,17 @@ services:
       start_period: 20s
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+  jaeger:
+    image: jaegertracing/jaeger:2.12.0
+    ports:
+      - "16686:16686"
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v3.7.3
     ports:
       - "9090:9090"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
 volumes:
   mysql-data:
   mongo-data:

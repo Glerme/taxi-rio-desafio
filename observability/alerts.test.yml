@@ -1,0 +1,72 @@
+rule_files:
+- alerts.yml
+evaluation_interval: 1m
+tests:
+- name: 5xx sustentados com trafego
+  interval: 1m
+  input_series:
+  - series: http_requests_total{job="api",status_code="500"}
+    values: 0+60x10
+  - series: http_requests_total{job="api",status_code="200"}
+    values: 0+540x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ApiTaxaDeErroAlta
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+      exp_annotations:
+        summary: Taxa de erros da API acima de 5%
+        description: Mais de 5% de respostas 5xx por 5 minutos indica falha persistente;
+          o piso de 0,1 req/s evita ruído com poucas requisições.
+- name: pouco trafego nao alerta
+  interval: 1m
+  input_series:
+  - series: http_requests_total{job="api",status_code="500"}
+    values: 0+1x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ApiTaxaDeErroAlta
+    exp_alerts: []
+- name: outbox atrasada
+  interval: 1m
+  input_series:
+  - series: outbox_oldest_pending_age_seconds{job="api"}
+    values: 31+0x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: EventosAtrasados
+    exp_alerts:
+    - exp_labels: &id001
+        severity: warning
+      exp_annotations: &id002
+        summary: Pipeline de eventos atrasado
+        description: Outbox ou p95 de lag acima de 30s, ou mais de 100 mensagens prontas
+          por 2 minutos indica acúmulo persistente; a fila detecta worker parado sem
+          amostras de lag.
+- name: p95 atrasado
+  interval: 1m
+  input_series:
+  - series: worker_event_lag_seconds_bucket{job="worker",le="30"}
+    values: 0+0x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="60"}
+    values: 0+60x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="+Inf"}
+    values: 0+60x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: EventosAtrasados
+    exp_alerts:
+    - exp_labels: *id001
+      exp_annotations: *id002
+- name: worker sem amostras e fila acumulada
+  interval: 1m
+  input_series:
+  - series: rabbitmq_detailed_queue_messages_ready{job="rabbitmq",vhost="/",queue="corridas.worker"}
+    values: 101+0x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: EventosAtrasados
+    exp_alerts:
+    - exp_labels: *id001
+      exp_annotations: *id002
