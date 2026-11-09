@@ -28,10 +28,17 @@ com tráfego acima de 0,1 req/s, sustentado por 5m. O piso reduz falsos positivo
 por requisições isoladas; o tempo evita disparos por falhas transitórias.
 
 `EventosAtrasados` (warning) exige por 2m qualquer sinal: idade do item mais antigo
-da outbox acima de 30s, p95 do lag do worker na janela de 5m acima de 30s, ou mais
-de 100 mensagens prontas em `corridas.worker`. Os 30s sinalizam perda de prontidão;
-2m toleram picos breves. A profundidade detecta worker parado mesmo sem amostras
-de lag. São limiares iniciais, a calibrar com o volume real.
+da outbox acima de 10s, p95 do lag do worker na janela de 5m acima de 10s, ou mais
+de 100 mensagens prontas em `corridas.worker`. A calibração com k6 está em
+[loadtest/RELATORIO.md](../loadtest/RELATORIO.md), com séries em
+`loadtest/results/{baseline,peak}/evidence.json`: a baseline teve idade máxima
+de outbox de 0,575s e pior p95 de lag de 3,577s; no pico foram 11,652s e cerca
+de 28,969s. Assim, 10s fica acima da baseline nos dois ramos e alcança a região
+de degradação do pico. Para o lag, 10s é borda de bucket; ~29s é interpolação
+no bucket 10–30s, não uma duração exata. Os percentis coletados usam `rate[1m]`,
+enquanto a regra mantém `rate[5m]`: estes dados não comprovam disparo por 2m
+na carga real. Os 2m toleram picos breves; a profundidade detecta worker parado
+mesmo sem amostras de lag (ready máximo observado: 0 na baseline e 23 no pico).
 
 A alternativa descartada foi alertar por DLQ não vazia: mensagens já isoladas
 podem permanecer para investigação sem significar atraso atual do pipeline.

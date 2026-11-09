@@ -32,7 +32,7 @@ tests:
   interval: 1m
   input_series:
   - series: outbox_oldest_pending_age_seconds{job="api"}
-    values: 31+0x10
+    values: 12+0x10
   alert_rule_test:
   - eval_time: 10m
     alertname: EventosAtrasados
@@ -40,21 +40,22 @@ tests:
     - exp_labels: &id001
         severity: warning
       exp_annotations: &id002
-        summary: Pipeline de eventos atrasado
-        description: Outbox ou p95 de lag acima de 30s, ou mais de 100 mensagens prontas
-          por 2 minutos indica acúmulo persistente; a fila detecta worker parado sem
-          amostras de lag.
+        summary: Pipeline de eventos atrasado (limiares calibrados com k6)
+        description: Outbox ou p95 de lag acima de 10s, ou mais de 100 mensagens prontas por 2 minutos; k6 mediu baseline de 0,575s/3,577s e pico de 11,652s/~29s (outbox/lag). A fila detecta worker parado sem amostras de lag.
 - name: p95 atrasado
   interval: 1m
   input_series:
+  - series: worker_event_lag_seconds_bucket{job="worker",le="10"}
+    values: 0+170x10
   - series: worker_event_lag_seconds_bucket{job="worker",le="30"}
-    values: 0+0x10
-  - series: worker_event_lag_seconds_bucket{job="worker",le="60"}
-    values: 0+60x10
+    values: 0+180x10
   - series: worker_event_lag_seconds_bucket{job="worker",le="+Inf"}
-    values: 0+60x10
+    values: 0+180x10
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 2m
+    alertname: EventosAtrasados
+    exp_alerts: []
+  - eval_time: 3m
     alertname: EventosAtrasados
     exp_alerts:
     - exp_labels: *id001
@@ -85,11 +86,13 @@ tests:
   interval: 1m
   input_series:
   - series: outbox_oldest_pending_age_seconds{job="api"}
-    values: 29+0x10
-  - series: worker_event_lag_seconds_bucket{job="worker",le="30"}
-    values: 0+60x10
+    values: 9+0x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="5"}
+    values: 0+150x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="10"}
+    values: 0+200x10
   - series: worker_event_lag_seconds_bucket{job="worker",le="+Inf"}
-    values: 0+60x10
+    values: 0+200x10
   - series: rabbitmq_detailed_queue_messages_ready{job="rabbitmq",vhost="/",queue="corridas.worker"}
     values: 99+0x10
   alert_rule_test:
@@ -123,7 +126,7 @@ tests:
   interval: 1m
   input_series:
   - series: outbox_oldest_pending_age_seconds{job="api"}
-    values: 0+0x4 31+0x5
+    values: 0+0x4 12+0x5
   alert_rule_test:
   - eval_time: 4m
     alertname: EventosAtrasados
@@ -140,3 +143,25 @@ tests:
     exp_samples:
     - labels: ALERTS{alertname="EventosAtrasados",alertstate="pending",severity="warning"}
       value: 1
+- name: outbox exatamente no limiar nao alerta
+  interval: 1m
+  input_series:
+  - series: outbox_oldest_pending_age_seconds{job="api"}
+    values: 10+0x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: EventosAtrasados
+    exp_alerts: []
+- name: p95 exatamente no limiar nao alerta
+  interval: 1m
+  input_series:
+  - series: worker_event_lag_seconds_bucket{job="worker",le="10"}
+    values: 0+190x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="30"}
+    values: 0+200x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="+Inf"}
+    values: 0+200x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: EventosAtrasados
+    exp_alerts: []
