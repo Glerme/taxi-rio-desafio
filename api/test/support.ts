@@ -11,6 +11,7 @@ import { CorridasController } from '../src/corridas.controller';
 import { CorridasService } from '../src/corridas.service';
 import { Corrida, Outbox } from '../src/entities';
 import { CacheService } from '../src/infrastructure';
+import { MetricsController } from '../src/observability';
 
 type EntityClass = new () => any;
 type Row = Record<string, any>;
@@ -103,17 +104,35 @@ class FakeManager {
       createQueryBuilder: (_alias?: string) => {
         let where: Row = {};
         let take = Number.POSITIVE_INFINITY;
+        const selects: { expression: string; alias?: string }[] = [];
         const builder = {
           where: (value: Row) => { where = value; return builder; },
           orderBy: (_column: string, _direction?: 'ASC' | 'DESC') => builder,
           take: (value: number) => { take = value; return builder; },
           setLock: (_mode: string) => builder,
           setOnLocked: (_mode: string) => builder,
+          select: (expression: string, alias?: string) => { selects.push({ expression, alias }); return builder; },
+          addSelect: (expression: string, alias?: string) => { selects.push({ expression, alias }); return builder; },
           getMany: async (): Promise<Row[]> => this.db.tableOf(entity)
             .filter((row) => matches(row, where))
             .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0))
             .slice(0, take)
             .map((row) => ({ ...row })),
+          // Enough of TypeORM's raw aggregates for the relay gauges: COUNT(*) and MIN(column).
+          getRawOne: async (): Promise<Row | undefined> => {
+            const rows = this.db.tableOf(entity).filter((row) => matches(row, where));
+            const raw: Row = {};
+            for (const { expression, alias } of selects) {
+              const count = /^COUNT\(\*\)$/i.test(expression.trim());
+              const min = /^MIN\((?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)\)$/i.exec(expression.trim());
+              if (count) raw[alias ?? 'count'] = String(rows.length);
+              else if (min) {
+                const values = rows.map((row) => row[min[1]]).filter((value) => value !== null && value !== undefined);
+                raw[alias ?? min[1]] = values.length ? values.reduce((left, right) => (left < right ? left : right)) : null;
+              } else throw new Error(`Fake datasource does not support select ${expression}`);
+            }
+            return raw;
+          },
         };
         return builder;
       },
@@ -168,12 +187,18 @@ export class FakeCache {
 
 export type TestApp = { app: INestApplication; db: FakeDataSource; cache: FakeCache };
 
-export async function createApp(): Promise<TestApp> {
+export type CreateAppOptions = {
+  metrics?: boolean;
+  // Runs before app.init() so tests can register middleware ahead of the route table.
+  setup?: (app: INestApplication) => void;
+};
+
+export async function createApp(options: CreateAppOptions = {}): Promise<TestApp> {
   process.env.JWT_PUBLIC_KEY_PATH = publicKeyPath;
   const db = new FakeDataSource();
   const cache = new FakeCache();
   const moduleRef = await Test.createTestingModule({
-    controllers: [CorridasController],
+    controllers: options.metrics ? [CorridasController, MetricsController] : [CorridasController],
     providers: [
       CorridasService,
       { provide: DataSource, useValue: db },
@@ -182,6 +207,7 @@ export async function createApp(): Promise<TestApp> {
     ],
   }).compile();
   const app = moduleRef.createNestApplication();
+  options.setup?.(app);
   await app.init();
   return { app, db, cache };
 }
