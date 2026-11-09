@@ -1,5 +1,5 @@
 import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
-import type { CorridaEvent, CorridaStatus } from 'contracts';
+import type { CorridaEvent, CorridaStatus, Role } from 'contracts';
 
 @Entity('corridas')
 @Index('uq_corrida_idempotency', ['passageiro_id', 'idempotency_key'], { unique: true })
@@ -27,4 +27,13 @@ export class Outbox {
   @Column({ type: 'json' }) payload!: CorridaEvent;
   @Column({ type: 'datetime', precision: 3 }) created_at!: Date;
   @Column({ type: 'datetime', precision: 3, nullable: true }) sent_at!: Date | null;
+}
+
+@Entity('users')
+export class User {
+  @PrimaryColumn({ type: 'char', length: 36 }) id!: string;
+  @Column({ type: 'varchar', length: 255, unique: true }) email!: string;
+  @Column({ type: 'varchar', length: 161 }) password_hash!: string;
+  @Column({ type: 'varchar', length: 255 }) sub!: string;
+  @Column({ type: 'varchar', length: 20 }) role!: Role;
 }

@@ -14,11 +14,13 @@ services:
       MYSQL_PASSWORD: taxi
       MYSQL_DATABASE: taxi
       JWT_PUBLIC_KEY_PATH: /keys/public.pem
+      JWT_PRIVATE_KEY_PATH: /keys/private.pem
       PORT: "3000"
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       OTEL_SERVICE_NAME: api
     volumes:
       - ./keys/public.pem:/keys/public.pem:ro
+      - ./keys/private.pem:/keys/private.pem:ro
     depends_on:
       mysql:
         condition: service_healthy
