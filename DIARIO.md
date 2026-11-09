@@ -36,5 +36,13 @@
 - Primeiro push: CI vermelho. O lint (`tsc --noEmit`) rodava antes do build de `contracts`, então o worker não achava o módulo. O revisor do worker já tinha previsto isso. Corrigido rodando o build de contracts logo após o install; criei também um `.dockerignore`.
 - Ficou uma dúvida se o `api/Dockerfile` funcionaria com `install --frozen-lockfile` sem os `package.json` da ui e do worker. O CI com `docker build` das 3 imagens passou verde.
 
+**Validação no compose**
+- Liguei o Docker e subi tudo com `docker compose up --build`: os 8 serviços subiram e a API ficou saudável na primeira tentativa.
+- Rodei os cenários do enunciado com curl: todos com o status esperado. Na primeira rodada, metade "falhou", mas o erro era do meu script (o `require` do Node não lê arquivo sem extensão `.json`, então o id da corrida veio vazio e as rotas viraram 404). Corrigi o script, não a API.
+- Testei o que até então só tinha prova com mocks: 10 POSTs simultâneos com a mesma chave geraram 1 linha no MySQL e 1 evento no outbox; republiquei pelo RabbitMQ um evento antigo (version 2) de uma corrida já finalizada, e o Mongo não duplicou nem o cache regrediu; uma mensagem que não era JSON foi para a DLQ.
+- A DLQ apareceu com 0 mensagens logo depois do envio. Olhando o log do worker, a mensagem tinha sido rejeitada; o contador da API de management do RabbitMQ só atualiza a cada ~5s.
+- Juntei tudo em `scripts/validar.sh` (21 verificações) para poder repetir.
+- Vi que a resposta do POST devolve `idempotency_key` e `request_hash`. Não é vazamento, mas anotei no LIMITES.
+
 **Uso de IA**
 - Toda a implementação foi feita por agentes (Claude, Codex e OpenCode) coordenados no Orca, com um agente revisor separado por tarefa e minha aprovação em cada merge.
