@@ -10,6 +10,7 @@ import { AuthGuard } from '../src/auth';
 import { CorridasController } from '../src/corridas.controller';
 import { CorridasService } from '../src/corridas.service';
 import { Corrida, Outbox } from '../src/entities';
+import { LoginController } from '../src/login.controller';
 import { CacheService } from '../src/infrastructure';
 import { MetricsController } from '../src/observability';
 
@@ -189,16 +190,22 @@ export type TestApp = { app: INestApplication; db: FakeDataSource; cache: FakeCa
 
 export type CreateAppOptions = {
   metrics?: boolean;
+  login?: boolean;
   // Runs before app.init() so tests can register middleware ahead of the route table.
   setup?: (app: INestApplication) => void;
 };
 
 export async function createApp(options: CreateAppOptions = {}): Promise<TestApp> {
   process.env.JWT_PUBLIC_KEY_PATH = publicKeyPath;
+  if (options.login) process.env.JWT_PRIVATE_KEY_PATH = join(keysDir, 'private.pem');
   const db = new FakeDataSource();
   const cache = new FakeCache();
   const moduleRef = await Test.createTestingModule({
-    controllers: options.metrics ? [CorridasController, MetricsController] : [CorridasController],
+    controllers: [
+      CorridasController,
+      ...(options.metrics ? [MetricsController] : []),
+      ...(options.login ? [LoginController] : []),
+    ],
     providers: [
       CorridasService,
       { provide: DataSource, useValue: db },
