@@ -1,3 +1,4 @@
+import { context, propagation } from '@opentelemetry/api';
 import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 import { createHash, randomUUID } from 'node:crypto';
@@ -24,7 +25,9 @@ export class CorridasService {
       passageiro_id: corrida.passageiro_id, motorista_id: corrida.motorista_id,
       status: corrida.status, version: corrida.version, occurred_at: corrida.updated_at.toISOString(),
     };
-    await manager.insert(Outbox, { event_id: event.event_id, routing_key: type, payload: event, created_at: corrida.updated_at, sent_at: null });
+    const carrier: Record<string, string> = {};
+    propagation.inject(context.active(), carrier);
+    await manager.insert(Outbox, { traceparent: carrier.traceparent ?? null, tracestate: carrier.tracestate ?? null, event_id: event.event_id, routing_key: type, payload: event, created_at: corrida.updated_at, sent_at: null });
   }
 
   async create(passageiro: string, key: string, body: CreateCorrida) {

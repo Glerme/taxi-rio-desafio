@@ -22,6 +22,8 @@ export class Corrida {
 export class Outbox {
   @PrimaryColumn({ type: 'char', length: 36 }) event_id!: string;
   @Column({ type: 'varchar', length: 64 }) routing_key!: CorridaEvent['type'];
+  @Column({ type: 'varchar', length: 55, nullable: true }) traceparent!: string | null;
+  @Column({ type: 'varchar', length: 512, nullable: true }) tracestate!: string | null;
   @Column({ type: 'json' }) payload!: CorridaEvent;
   @Column({ type: 'datetime', precision: 3 }) created_at!: Date;
   @Column({ type: 'datetime', precision: 3, nullable: true }) sent_at!: Date | null;
