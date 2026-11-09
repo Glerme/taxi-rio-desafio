@@ -22,12 +22,12 @@ spec:
             description: Mais de 5% de respostas 5xx por 5 minutos indica falha persistente; o piso de 0,1 req/s evita ruído com poucas requisições.
         - alert: EventosAtrasados
           expr: |
-            (max(outbox_oldest_pending_age_seconds{job="api"}) > 30)
-            or (histogram_quantile(0.95, sum by (le) (rate(worker_event_lag_seconds_bucket{job="worker"}[5m]))) > 30)
+            (max(outbox_oldest_pending_age_seconds{job="api"}) > 10)
+            or (histogram_quantile(0.95, sum by (le) (rate(worker_event_lag_seconds_bucket{job="worker"}[5m]))) > 10)
             or (max(rabbitmq_detailed_queue_messages_ready{job="rabbitmq",vhost="/",queue="corridas.worker"}) > 100)
           for: 2m
           labels:
             severity: warning
           annotations:
-            summary: Pipeline de eventos atrasado
-            description: Outbox ou p95 de lag acima de 30s, ou mais de 100 mensagens prontas por 2 minutos indica acúmulo persistente; a fila detecta worker parado sem amostras de lag.
+            summary: Pipeline de eventos atrasado (limiares calibrados com k6)
+            description: Outbox ou p95 de lag acima de 10s, ou mais de 100 mensagens prontas por 2 minutos; k6 mediu baseline de 0,575s/3,577s e pico de 11,652s/~29s (outbox/lag). A fila detecta worker parado sem amostras de lag.
