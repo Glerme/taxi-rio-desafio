@@ -1,11 +1,15 @@
+import './tracing';
 import 'reflect-metadata';
-import { Injectable, Logger, Module, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Module, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Channel, ChannelModel, connect } from 'amqplib';
 import { assertTopology, EVENTOS_COLLECTION, EVENTOS_UNIQUE_INDEX, WORKER_QUEUE } from 'contracts';
 import Redis from 'ioredis';
 import { MongoClient } from 'mongodb';
 import { processMessage, StoredEvent } from './process-message';
+import { logger } from './logger';
+import { startMetricsServer } from './metrics';
+import { shutdownTracing } from './tracing';
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -15,7 +19,7 @@ function requiredEnv(name: string): string {
 
 @Injectable()
 class Worker implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(Worker.name);
+  private readonly logger = logger;
   private mongo?: MongoClient;
   private redis?: Redis;
   private connection?: ChannelModel;
@@ -62,7 +66,7 @@ class Worker implements OnModuleInit, OnModuleDestroy {
         }).finally(() => this.pending.delete(task));
       }, { noAck: false });
       this.consumerTag = consumer.consumerTag;
-      this.logger.log(`Consuming ${WORKER_QUEUE}`);
+      this.logger.info(`Consuming ${WORKER_QUEUE}`);
     } catch (error) {
       await this.onModuleDestroy();
       throw error;
@@ -79,6 +83,8 @@ class Worker implements OnModuleInit, OnModuleDestroy {
         this.channel?.close(), this.connection?.close(), this.mongo?.close(),
       ]);
       this.redis?.disconnect();
+      metricsServer.close();
+      await shutdownTracing();
       for (const result of results) {
         if (result.status === 'rejected') this.logger.error(String(result.reason));
       }
@@ -89,9 +95,15 @@ class Worker implements OnModuleInit, OnModuleDestroy {
 @Module({ providers: [Worker] })
 class WorkerModule {}
 
-void NestFactory.createApplicationContext(WorkerModule).then((app) => {
+const metricsServer = startMetricsServer();
+metricsServer.on('error', (error) => {
+  logger.error({ err: error }, 'Metrics server failed');
+  process.exit(1);
+});
+
+void NestFactory.createApplicationContext(WorkerModule, { logger: false }).then((app) => {
   app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
 }).catch((error: unknown) => {
-  console.error(error);
+  logger.error({ err: error }, 'Worker startup failed');
   process.exit(1);
 });
