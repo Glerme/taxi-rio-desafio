@@ -1,0 +1,1 @@
+Worker NestJS standalone que consome eventos de corridas do RabbitMQ, persiste no MongoDB e atualiza o Redis pelo guard atômico de versão compartilhado. Requer `MONGO_URL`, `RABBITMQ_URL` e `REDIS_URL`; rejeita mensagens inválidas sem requeue, reencaminha falhas de infraestrutura e aguarda mensagens em processamento no shutdown.
