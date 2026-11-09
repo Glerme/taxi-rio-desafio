@@ -50,5 +50,3 @@ docker run --rm --entrypoint promtool -v "$PWD/observability:/obs:ro" prom/prome
 docker run --rm --entrypoint promtool -v "$PWD/observability:/obs:ro" prom/prometheus:v3.7.3 check rules /obs/alerts.yml
 docker run --rm --entrypoint promtool -v "$PWD/observability:/obs:ro" prom/prometheus:v3.7.3 test rules /obs/alerts.test.yml
 ```
-
-Saídas e prova de equivalência: [VALIDATION.md](VALIDATION.md).

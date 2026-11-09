@@ -12,7 +12,7 @@ tests:
   alert_rule_test:
   - eval_time: 10m
     alertname: ApiTaxaDeErroAlta
-    exp_alerts:
+    exp_alerts: &id003
     - exp_labels:
         severity: critical
       exp_annotations:
@@ -36,7 +36,7 @@ tests:
   alert_rule_test:
   - eval_time: 10m
     alertname: EventosAtrasados
-    exp_alerts:
+    exp_alerts: &id004
     - exp_labels: &id001
         severity: warning
       exp_annotations: &id002
@@ -70,3 +70,73 @@ tests:
     exp_alerts:
     - exp_labels: *id001
       exp_annotations: *id002
+- name: trafego alto com 1% de 5xx nao alerta
+  interval: 1m
+  input_series:
+  - series: http_requests_total{job="api",status_code="500"}
+    values: 0+6x12
+  - series: http_requests_total{job="api",status_code="200"}
+    values: 0+594x12
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: ApiTaxaDeErroAlta
+    exp_alerts: []
+- name: pipeline abaixo dos tres limiares nao alerta
+  interval: 1m
+  input_series:
+  - series: outbox_oldest_pending_age_seconds{job="api"}
+    values: 29+0x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="30"}
+    values: 0+60x10
+  - series: worker_event_lag_seconds_bucket{job="worker",le="+Inf"}
+    values: 0+60x10
+  - series: rabbitmq_detailed_queue_messages_ready{job="rabbitmq",vhost="/",queue="corridas.worker"}
+    values: 99+0x10
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: EventosAtrasados
+    exp_alerts: []
+- name: API muda em 6m e aguarda exatamente 5m antes de disparar
+  interval: 1m
+  input_series:
+  - series: http_requests_total{job="api",status_code="500"}
+    values: 0+0x5 600+600x6
+  - series: http_requests_total{job="api",status_code="200"}
+    values: 0+600x5 3000+0x6
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: ApiTaxaDeErroAlta
+    exp_alerts: []
+  - eval_time: 10m
+    alertname: ApiTaxaDeErroAlta
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: ApiTaxaDeErroAlta
+    exp_alerts: *id003
+  promql_expr_test:
+  - expr: ALERTS{alertname="ApiTaxaDeErroAlta",alertstate="pending"}
+    eval_time: 10m
+    exp_samples:
+    - labels: ALERTS{alertname="ApiTaxaDeErroAlta",alertstate="pending",severity="critical"}
+      value: 1
+- name: outbox muda em 5m e aguarda exatamente 2m antes de disparar
+  interval: 1m
+  input_series:
+  - series: outbox_oldest_pending_age_seconds{job="api"}
+    values: 0+0x4 31+0x5
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: EventosAtrasados
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: EventosAtrasados
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: EventosAtrasados
+    exp_alerts: *id004
+  promql_expr_test:
+  - expr: ALERTS{alertname="EventosAtrasados",alertstate="pending"}
+    eval_time: 6m
+    exp_samples:
+    - labels: ALERTS{alertname="EventosAtrasados",alertstate="pending",severity="warning"}
+      value: 1
