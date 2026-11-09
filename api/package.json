@@ -2,6 +2,7 @@
   "name": "api",
   "version": "1.0.0",
   "private": true,
+  "files": ["dist"],
   "scripts": { "build": "tsc -p tsconfig.build.json", "lint": "tsc --noEmit", "test": "jest --passWithNoTests", "start": "node dist/main.js" },
   "dependencies": {
     "@nestjs/common": "^11.1.0", "@nestjs/core": "^11.1.0", "@nestjs/platform-express": "^11.1.0", "@nestjs/typeorm": "^11.0.0",
