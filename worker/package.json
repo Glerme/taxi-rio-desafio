@@ -29,6 +29,6 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "testRegex": "\\.spec\\.ts$",
-    "roots": ["<rootDir>/src", "<rootDir>/test"]
+    "roots": ["<rootDir>/src"]
   }
 }
