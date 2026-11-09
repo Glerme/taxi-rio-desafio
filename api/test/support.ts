@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
-import { DataSource, QueryFailedError } from 'typeorm';
+import { DataSource, FindOperator, QueryFailedError } from 'typeorm';
 import { AuthGuard } from '../src/auth';
 import { CorridasController } from '../src/corridas.controller';
 import { CorridasService } from '../src/corridas.service';
@@ -37,7 +37,13 @@ export function signJwt(claims: { sub: string; role: string }, privateKey = repo
 }
 
 function matches(row: Row, where: Row): boolean {
-  return Object.entries(where).every(([key, value]) => row[key] === value);
+  return Object.entries(where).every(([key, value]) => {
+    if (value instanceof FindOperator) {
+      if (value.type === 'isNull') return row[key] === null || row[key] === undefined;
+      throw new Error(`Fake datasource does not support FindOperator ${value.type}`);
+    }
+    return row[key] === value;
+  });
 }
 
 class FakeManager {
@@ -76,6 +82,9 @@ class FakeManager {
   }
 
   async update(entity: EntityClass, where: Row, patch: Row): Promise<{ affected: number }> {
+    const hook = this.db.beforeUpdate;
+    this.db.beforeUpdate = undefined;
+    hook?.(entity, where);
     const rows = this.db.tableOf(entity).filter((row) => matches(row, where));
     for (const row of rows) Object.assign(row, patch);
     return { affected: rows.length };
@@ -91,6 +100,23 @@ class FakeManager {
         if (column) rows.sort((a, b) => (direction === 'DESC' ? -1 : 1) * (a[column] < b[column] ? -1 : a[column] > b[column] ? 1 : 0));
         return rows.map((row) => ({ ...row }));
       },
+      createQueryBuilder: (_alias?: string) => {
+        let where: Row = {};
+        let take = Number.POSITIVE_INFINITY;
+        const builder = {
+          where: (value: Row) => { where = value; return builder; },
+          orderBy: (_column: string, _direction?: 'ASC' | 'DESC') => builder,
+          take: (value: number) => { take = value; return builder; },
+          setLock: (_mode: string) => builder,
+          setOnLocked: (_mode: string) => builder,
+          getMany: async (): Promise<Row[]> => this.db.tableOf(entity)
+            .filter((row) => matches(row, where))
+            .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0))
+            .slice(0, take)
+            .map((row) => ({ ...row })),
+        };
+        return builder;
+      },
     };
   }
 }
@@ -99,6 +125,7 @@ export class FakeDataSource {
   readonly inserts: Insert[] = [];
   readonly transactionManagers: FakeManager[] = [];
   beforeCorridaInsert?: (row: Row) => void;
+  beforeUpdate?: (entity: EntityClass, where: Row) => void;
   private readonly tables = new Map<EntityClass, Row[]>();
 
   tableOf(entity: EntityClass): Row[] {

@@ -5,6 +5,7 @@ import { createApp, FakeCache, FakeDataSource, foreignPrivateKey, signJwt } from
 
 const passageiro = signJwt({ sub: 'p1', role: 'passageiro' });
 const motorista = signJwt({ sub: 'm1', role: 'motorista' });
+const otherMotorista = signJwt({ sub: 'm2', role: 'motorista' });
 const otherPassageiro = signJwt({ sub: 'p2', role: 'passageiro' });
 
 describe('corridas HTTP', () => {
@@ -127,5 +128,55 @@ describe('corridas HTTP', () => {
   it('does not leak another passenger ride through GET', async () => {
     const created = await post().expect(201);
     await request(app.getHttpServer()).get(`/corridas/${created.body.id}`).set('Authorization', `Bearer ${otherPassageiro}`).expect(403);
+  });
+
+  it('answers 403 when another motorista tries to advance a ride accepted by m1', async () => {
+    const created = await post().expect(201);
+    const id = created.body.id as string;
+    await patch(id, 'aceita').expect(200);
+
+    await patch(id, 'em_andamento', otherMotorista).expect(403);
+    expect(db.rows(Corrida)[0]).toMatchObject({ status: 'aceita', version: 2, motorista_id: 'm1' });
+    expect(db.rows(Outbox)).toHaveLength(2);
+
+    await patch(id, 'em_andamento').expect(200);
+    await patch(id, 'finalizada', otherMotorista).expect(403);
+    expect(db.rows(Corrida)[0]).toMatchObject({ status: 'em_andamento', version: 3, motorista_id: 'm1' });
+    expect(db.rows(Outbox)).toHaveLength(3);
+  });
+
+  it('answers 409 when the version moved between read and update, without a new outbox event', async () => {
+    const created = await post().expect(201);
+    const id = created.body.id as string;
+    await patch(id, 'aceita').expect(200);
+
+    // Simulates a competing commit bumping the version after our read and before UPDATE ... WHERE version = ?.
+    db.beforeUpdate = (entity) => {
+      if (entity === Corrida) db.rows(Corrida)[0].version = 99;
+    };
+
+    await patch(id, 'em_andamento').expect(409);
+
+    expect(db.rows(Corrida)[0]).toMatchObject({ status: 'aceita', version: 99 });
+    expect(db.rows(Outbox)).toHaveLength(2);
+  });
+
+  it('answers 200 with the MySQL snapshot when the Redis read throws', async () => {
+    const created = await post().expect(201);
+    const id = created.body.id as string;
+    jest.spyOn(cache.redis, 'get').mockRejectedValueOnce(new Error('redis down'));
+
+    const fetched = await request(app.getHttpServer()).get(`/corridas/${id}`).set('Authorization', `Bearer ${passageiro}`).expect(200);
+    expect(fetched.body).toMatchObject({ id, version: 1, status: 'solicitada', passageiro_id: 'p1' });
+  });
+
+  it('answers 200 with the MySQL snapshot when the Redis write throws', async () => {
+    const created = await post().expect(201);
+    const id = created.body.id as string;
+    jest.spyOn(cache.redis, 'eval').mockRejectedValueOnce(new Error('redis down'));
+
+    const fetched = await request(app.getHttpServer()).get(`/corridas/${id}`).set('Authorization', `Bearer ${passageiro}`).expect(200);
+    expect(fetched.body).toMatchObject({ id, version: 1, status: 'solicitada', passageiro_id: 'p1' });
+    expect(cache.values.has(`corrida:${id}`)).toBe(false);
   });
 });
