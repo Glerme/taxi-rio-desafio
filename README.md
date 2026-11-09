@@ -24,7 +24,8 @@ docker compose up --build
 | UI | http://localhost:8080 |
 | API | http://localhost:3000 (`GET /health`) |
 | RabbitMQ (management) | http://localhost:15672 (guest / guest) |
-| Prometheus | http://localhost:9090 |
+| Prometheus | http://localhost:9090 (`/targets`, `/alerts`) |
+| Jaeger | http://localhost:16686 |
 
 As migrations do MySQL rodam no start da API. A topologia do RabbitMQ (exchange, fila, DLQ) é criada no boot da API e do worker.
 
@@ -94,13 +95,21 @@ scripts/             gerar chaves/tokens e validar o ambiente
 
 Monorepo com pnpm workspaces: cada serviço declara só as dependências que usa (imagens menores) e o contrato compartilhado fica num pacote só.
 
+## Observabilidade (Parte 2)
+
+- **Logs:** JSON (pino) na API e no worker, com `trace_id` e `span_id` em toda linha. O `trace_id` é o correlation id: o mesmo valor aparece no log da API, no log do worker e no Jaeger. Para seguir uma corrida: `docker compose logs api worker | grep <corrida_id>`.
+- **Trace:** crie uma corrida e procure o serviço `api`, operação `POST /corridas`, em http://localhost:16686. O trace segue pelo outbox (`corridas publish`) até o worker (`corridas process`, com Mongo e Redis).
+- **Métricas:** `GET localhost:3000/metrics` (API) e `worker:3001/metrics` (worker, dentro da rede do compose). Profundidade da fila vem do plugin Prometheus do RabbitMQ. Detalhes e nomes em [observability/README.md](observability/README.md).
+- **Alertas:** `observability/alerts.yml` (carregado pelo Prometheus, veja http://localhost:9090/alerts) e `observability/alerts-prometheusrule.yaml` (mesmas regras como PrometheusRule). Justificativa dos dois alertas e dos limiares: [DECISIONS.md](DECISIONS.md), entrada 8.
+- **Carga:** script e relatório em [loadtest/](loadtest/RELATORIO.md).
+
 ## Testes e CI
 
 ```bash
 pnpm install
 pnpm --filter contracts build   # api e worker dependem do build dos contracts
 pnpm -r lint                    # tsc --noEmit
-pnpm -r test                    # Jest: contracts 14, api 18, worker 7
+pnpm -r test                    # Jest: contracts 14, api 28, worker 15
 pnpm -r build
 ```
 

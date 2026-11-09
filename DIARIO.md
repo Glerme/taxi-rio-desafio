@@ -44,5 +44,18 @@
 - Juntei tudo em `scripts/validar.sh` (21 verificações) para poder repetir.
 - Vi que a resposta do POST devolve `idempotency_key` e `request_hash`. Não é vazamento, mas anotei no LIMITES.
 
+**Parte 2: Operar**
+- Antes de quebrar as tarefas, percebi que o trace morreria no outbox: o relay publica fora da request. Decidi gravar o `traceparent` no outbox e fazer a propagação explícita até o worker.
+- O revisor do worker achou que o pnpm 12 bloqueia o script de build do `protobufjs` (trazido pelo OTel), e o `pnpm install --frozen-lockfile` do Dockerfile ia quebrar. Ele confirmou num diretório temporário que `allowBuilds: { protobufjs: false }` no `pnpm-workspace.yaml` resolve; o script só confere versão.
+- O SDK do OTel liga por padrão exporters de logs e métricas. Cada linha do pino ia para o Jaeger, que só aceita traces. Desliguei nos dois serviços.
+- O revisor da API viu que cada tick do relay gerava ~4 traces raiz de MySQL (8 por segundo), que poluiriam o Jaeger. Agora o trabalho de banco do relay roda com tracing suprimido; só o span de publish, ligado à request, aparece.
+- Subi o compose de novo: o `validar.sh` continuou 21/21, e um `POST /corridas` gerou um trace com 16 spans da API ao worker, com o mesmo `trace_id` nos logs dos dois.
+
+**k6**
+- Execução de referência (até 10 corridas/s): 0% de erro, p95 de 215ms. Pico (até 32 corridas/s, ~195 req/s oferecidas): 0% de erro, mas p95 de 950ms, 1.112 eventos parados no outbox e atraso p95 de ~29s.
+- O gargalo é o relay: 50 eventos a cada 500ms (~100/s) contra 128 eventos/s oferecidos no pico. A fila do RabbitMQ chegou só a 23 e o worker processa em poucos ms: a espera acontece antes do broker.
+- O alerta `EventosAtrasados` (30s) não disparou com 29s de atraso. O limiar estava frouxo demais para "quase em tempo real". Calibrei para 10s com os números do teste.
+- Um trace do pico mostrou o INSERT no outbox levando 545ms contra 0,25ms do INSERT em corridas. A hipótese é contenção com o relay, que segura a transação enquanto espera o confirm do RabbitMQ. Não medi lock waits, então ficou como hipótese.
+
 **Uso de IA**
 - Toda a implementação foi feita por agentes (Claude, Codex e OpenCode) coordenados no Orca, com um agente revisor separado por tarefa e minha aprovação em cada merge.
