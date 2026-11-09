@@ -1,14 +1,8 @@
 import { propagation, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace';
 import type { ConsumeMessage } from 'amqplib';
 import { withMessageSpan } from './message-tracing';
-
-// sdk-trace and core are transitive dependencies of the already-installed sdk-node.
-const sdkTrace = require(require.resolve('@opentelemetry/sdk-trace', {
-  paths: [require.resolve('@opentelemetry/sdk-node')],
-}));
-const otelCore = require(require.resolve('@opentelemetry/core', {
-  paths: [require.resolve('@opentelemetry/sdk-node')],
-}));
 
 const TRACE_ID = '0af7651916cd43dd8448eb211c80319c';
 const PARENT_SPAN_ID = 'b7ad6b7169203331';
@@ -26,12 +20,12 @@ describe('withMessageSpan', () => {
   let provider: any;
 
   beforeEach(() => {
-    exporter = new sdkTrace.InMemorySpanExporter();
-    provider = new sdkTrace.TracerProvider({
-      spanProcessors: [new sdkTrace.SimpleSpanProcessor({ exporter })],
+    exporter = new InMemorySpanExporter();
+    provider = new TracerProvider({
+      spanProcessors: [new SimpleSpanProcessor({ exporter })],
     });
     trace.setGlobalTracerProvider(provider);
-    propagation.setGlobalPropagator(new otelCore.W3CTraceContextPropagator());
+    propagation.setGlobalPropagator(new W3CTraceContextPropagator());
   });
 
   afterEach(async () => {
