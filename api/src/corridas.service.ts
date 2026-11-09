@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 import { createHash, randomUUID } from 'node:crypto';
 import { canTransition, corridaKey, CorridaEvent, CorridaStatus, JwtClaims, ROUTING_KEYS, setCorridaIfNewer } from 'contracts';
@@ -10,6 +10,7 @@ export type CreateCorrida = { origem: string; destino: string };
 
 @Injectable()
 export class CorridasService {
+  private readonly logger = new Logger(CorridasService.name);
   constructor(private readonly db: DataSource, private readonly cache: CacheService) {}
 
   private replay(corrida: Corrida, hash: string) {
@@ -69,14 +70,23 @@ export class CorridasService {
   }
 
   async get(id: string, user: JwtClaims): Promise<CorridaSnapshot> {
-    const cached = await this.cache.redis.get(corridaKey(id));
+    let cached: string | null = null;
+    try {
+      cached = await this.cache.redis.get(corridaKey(id));
+    } catch (error) {
+      this.logger.warn(`Cache read failed; using MySQL: ${error instanceof Error ? error.message : String(error)}`);
+    }
     let snapshot: CorridaSnapshot;
     if (cached) snapshot = JSON.parse(cached) as CorridaSnapshot;
     else {
       const corrida = await this.db.getRepository(Corrida).findOneBy({ id });
       if (!corrida) throw new NotFoundException();
       snapshot = { id: corrida.id, passageiro_id: corrida.passageiro_id, motorista_id: corrida.motorista_id, status: corrida.status, version: corrida.version, updated_at: corrida.updated_at.toISOString() };
-      await setCorridaIfNewer(this.cache.redis, snapshot);
+      try {
+        await setCorridaIfNewer(this.cache.redis, snapshot);
+      } catch (error) {
+        this.logger.warn(`Cache write failed; returning MySQL snapshot: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     if (user.role === 'passageiro' && snapshot.passageiro_id !== user.sub) throw new ForbiddenException();
     return snapshot;
