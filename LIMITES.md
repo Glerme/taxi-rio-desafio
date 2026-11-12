@@ -6,7 +6,7 @@
 
 - Parte 1 completa e validada no compose: 8 serviços, API (JWT RS256, idempotência, outbox, cache-aside), worker (Mongo + Redis, tolerante a duplicata, DLQ), UI mínima, 39 testes automatizados, CI verde (lint, testes, build e `docker build` das 3 imagens) e `scripts/validar.sh` com 21 verificações contra os serviços reais.
 - Parte 2 feita: logs JSON com `trace_id`, `/metrics` na API e no worker, trace OpenTelemetry da API ao worker atravessando o outbox (Jaeger), 2 alertas (`alerts.yml` + `PrometheusRule`) calibrados com o k6, e teste de carga com relatório (`loadtest/`).
-- Parte 3 (Kubernetes) não foi feita.
+- Parte 3 (Kubernetes) não foi feita. Priorizei uma Parte 1 sólida e a Parte 2 (peso alto) dentro do tempo sugerido de 6 a 8 h. A Parte 3 tem peso médio, e fazê-la às pressas renderia manifestos que eu não conseguiria defender com segurança.
 
 ## Limitações conhecidas
 
