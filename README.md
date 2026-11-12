@@ -9,6 +9,8 @@ Passageiro solicita uma corrida, motorista aceita, inicia e finaliza. A API grav
                                                           └──────▶ Redis (status)
 ```
 
+**Vídeo de apresentação:** https://youtu.be/xiMOKa67pIQ
+
 Decisões e trade-offs: [DECISIONS.md](DECISIONS.md) · Diário: [DIARIO.md](DIARIO.md) · O que ficou de fora: [LIMITES.md](LIMITES.md)
 
 ## Subir
@@ -26,6 +28,29 @@ docker compose up --build
 | RabbitMQ (management) | http://localhost:15672 (guest / guest) |
 | Prometheus | http://localhost:9090 (`/targets`, `/alerts`) |
 | Jaeger | http://localhost:16686 |
+
+### Credenciais de teste
+
+Todas são só de teste e valem apenas neste ambiente local.
+
+| Onde | Usuário | Senha |
+|---|---|---|
+| UI / `POST /auth/login` | `passageiro1@taxi.rio`, `passageiro2@taxi.rio`, `motorista1@taxi.rio` | `taxi123` |
+| RabbitMQ (http://localhost:15672) | `guest` | `guest` |
+| MySQL (banco `taxi`) | `taxi` ou `root` | `taxi` |
+| MongoDB (banco `taxi`) | sem autenticação | — |
+| Redis | sem autenticação | — |
+| Prometheus, Jaeger | sem login | — |
+
+MySQL, MongoDB e Redis não expõem porta no host; acesse pelo container:
+
+```bash
+docker compose exec mysql mysql -utaxi -ptaxi taxi -e "select id, status, version from corridas"
+docker compose exec mongo mongosh taxi --eval "db.eventos.find().limit(5)"
+docker compose exec redis redis-cli keys '*'
+```
+
+Tokens JWT prontos (sem login) estão em `keys/tokens.json`; veja [Chaves e tokens de teste](#chaves-e-tokens-de-teste).
 
 As migrations do MySQL rodam no start da API. A topologia do RabbitMQ (exchange, fila, DLQ) é criada no boot da API e do worker.
 
