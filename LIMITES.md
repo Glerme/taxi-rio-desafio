@@ -1,7 +1,5 @@
 # Limites
 
-> Rascunho. Revise antes de entregar.
-
 ## Escopo implementado
 
 - Parte 1 completa e validada no compose: 8 serviços, API (JWT RS256, idempotência, outbox, cache-aside), worker (Mongo + Redis, tolerante a duplicata, DLQ), UI mínima, 39 testes automatizados, CI verde (lint, testes, build e `docker build` das 3 imagens) e `scripts/validar.sh` com 21 verificações contra os serviços reais.
