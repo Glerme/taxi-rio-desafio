@@ -1,7 +1,5 @@
 # Diário de desenvolvimento
 
-> Rascunho montado a partir do histórico da execução. Revise e complete com a sua voz: o que você pensou, o que estranhou.
-
 ## 2026-11-09
 
 **Planejamento**

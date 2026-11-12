@@ -1,7 +1,5 @@
 # Decisões técnicas
 
-> Rascunho. Revise cada entrada: preciso conseguir defender todas na entrevista.
-
 ## 1. Idempotência no banco e na aplicação
 
 - **Contexto:** reenviar `POST /corridas` com a mesma `Idempotency-Key` não pode criar corrida duplicada, nem quando duas requisições chegam juntas.
@@ -39,8 +37,6 @@
 - **Regras de acesso:** sem token ou token inválido → 401; role errada → 403; passageiro lendo corrida de outro → **403** (não 404: preferi deixar o 403 explícito, como o enunciado pede para demonstrar); motorista lê qualquer corrida; só o motorista que aceitou pode iniciar/finalizar (outro → 403).
 
 ## 6. Se fosse do zero, manteria o RabbitMQ?
-
-> Entrada obrigatória. Rascunho de argumento, ajuste para a sua opinião.
 
 - **Para este fluxo, sim.** O volume é baixo, há um único consumidor por tipo de evento e o que importa é entrega confiável por mensagem: ack/nack, DLQ e limite de entregas nativo (quorum), roteamento por routing key. O RabbitMQ entrega tudo isso pronto e é simples de operar no compose e no Kubernetes (KEDA tem scaler para ele). No k6, a fila nunca passou de 23 mensagens: o broker não foi o gargalo.
 - **Quando trocaria:** se precisasse reprocessar o histórico de eventos (replay), ter vários consumidores independentes lendo o mesmo stream ou volume muito alto, iria para Kafka (ou Redpanda). Se já estivesse em cloud gerenciada e quisesse zero operação, SQS + SNS.
