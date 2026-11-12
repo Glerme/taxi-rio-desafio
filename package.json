@@ -6,6 +6,13 @@
   "scripts": {
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "start": "docker compose up --build -d",
+    "stop": "docker compose down",
+    "logs": "docker compose logs -f api worker",
+    "validar": "./scripts/validar.sh",
+    "keys": "node scripts/gen-keys-tokens.mjs",
+    "k6": "docker run --rm --user \"$(id -u):$(id -g)\" --network host -v \"$PWD:/work:ro\" -e PEAK=${PEAK:-10} grafana/k6:1.4.2 run /work/loadtest/script.js",
+    "loadtest": "python3 loadtest/measure.py"
   }
 }
